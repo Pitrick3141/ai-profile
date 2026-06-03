@@ -11,6 +11,7 @@ let saveInFlight = false;
 let copyMessage = "";
 
 window.addEventListener("popstate", renderRoute);
+window.addEventListener("keydown", handleKeydown);
 app.addEventListener("click", handleClick);
 
 renderRoute();
@@ -82,9 +83,7 @@ function renderSurvey() {
     <section class="survey-layout">
       <article class="question-panel">
         <div class="question-meta">
-          <span class="pill">第 ${surveyState.currentIndex + 1} 题</span>
-          <span class="pill">${escapeHtml(question.dimension)}</span>
-          <span class="pill">${escapeHtml(question.primarySubdimension)}</span>
+          <span class="pill">第 ${surveyState.currentIndex + 1} / ${total} 题</span>
         </div>
         <h2 class="question-text">${escapeHtml(question.text)}</h2>
         <div class="scale-grid" role="radiogroup" aria-label="同意程度">
@@ -419,6 +418,35 @@ function handleClick(event) {
   } else if (action === "start-own-test") {
     startOwnTest();
   }
+}
+
+function handleKeydown(event) {
+  if (shouldIgnoreKeyboardShortcut(event)) return;
+  if (getSharedId() || !surveyState || isComplete(surveyState)) return;
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    moveBy(-1);
+    return;
+  }
+
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    moveBy(1);
+    return;
+  }
+
+  if (/^[1-7]$/.test(event.key)) {
+    event.preventDefault();
+    setAnswer(Number(event.key));
+  }
+}
+
+function shouldIgnoreKeyboardShortcut(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return true;
+  const target = event.target;
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
 function setAnswer(value) {
