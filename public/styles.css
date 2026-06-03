@@ -22,11 +22,14 @@
 
 html {
   min-height: 100%;
-  background: var(--bg);
+  background:
+    linear-gradient(90deg, rgba(15, 118, 110, 0.06), transparent 38%),
+    linear-gradient(180deg, #fbfcf8 0%, #eef4ef 100%);
+  background-attachment: fixed;
 }
 
 body {
-  min-height: 100%;
+  min-height: 100vh;
   margin: 0;
   color: var(--ink);
   font-family:
@@ -38,9 +41,7 @@ body {
     "Segoe UI",
     "Microsoft YaHei",
     sans-serif;
-  background:
-    linear-gradient(90deg, rgba(15, 118, 110, 0.06), transparent 38%),
-    linear-gradient(180deg, #fbfcf8 0%, #eef4ef 100%);
+  background: transparent;
   letter-spacing: 0;
 }
 
@@ -290,6 +291,104 @@ button {
   cursor: not-allowed;
   opacity: 0.56;
   transform: none;
+}
+
+.landing-page {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: -28px;
+}
+
+.landing-hero {
+  display: grid;
+  min-height: min(720px, calc(100svh - 96px));
+  align-items: center;
+  padding: 86px max(24px, calc((100vw - 1180px) / 2)) 72px;
+  background:
+    linear-gradient(90deg, rgba(247, 249, 245, 0.96) 0%, rgba(247, 249, 245, 0.84) 34%, rgba(247, 249, 245, 0.2) 70%),
+    url("/assets/landing-hero.png") center / cover no-repeat;
+}
+
+.landing-copy {
+  width: min(620px, 100%);
+}
+
+.landing-kicker {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: var(--primary-dark);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.landing-copy h1 {
+  margin: 0;
+  font-size: 3.2rem;
+  line-height: 1.12;
+  font-weight: 800;
+}
+
+.landing-copy p {
+  margin: 18px 0 0;
+  color: #41504a;
+  font-size: 1.12rem;
+  line-height: 1.8;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.landing-start {
+  min-height: 48px;
+  padding-inline: 22px;
+  font-weight: 740;
+}
+
+.landing-note {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.landing-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  width: min(1180px, calc(100% - 32px));
+  margin: -34px auto 44px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--line);
+  box-shadow: var(--shadow);
+}
+
+.landing-summary div {
+  min-height: 138px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.landing-summary strong,
+.landing-summary span {
+  display: block;
+}
+
+.landing-summary strong {
+  margin-bottom: 9px;
+  font-size: 1rem;
+}
+
+.landing-summary span {
+  color: var(--muted);
+  line-height: 1.65;
 }
 
 .side-panel {
@@ -663,6 +762,23 @@ button {
   .scale-button {
     min-height: 92px;
   }
+
+  .landing-hero {
+    min-height: min(680px, calc(100svh - 82px));
+    padding: 72px 24px 86px;
+    background:
+      linear-gradient(90deg, rgba(247, 249, 245, 0.97) 0%, rgba(247, 249, 245, 0.78) 58%, rgba(247, 249, 245, 0.28) 100%),
+      url("/assets/landing-hero.png") center / cover no-repeat;
+  }
+
+  .landing-summary {
+    grid-template-columns: 1fr;
+    margin-top: -42px;
+  }
+
+  .landing-summary div {
+    min-height: auto;
+  }
 }
 
 @media (max-width: 760px) {
@@ -685,6 +801,14 @@ button {
 
   .scale-button:nth-child(7) {
     grid-column: 1 / -1;
+  }
+
+  .landing-copy h1 {
+    font-size: 2.15rem;
+  }
+
+  .landing-copy p {
+    font-size: 1rem;
   }
 }
 
@@ -724,6 +848,32 @@ button {
   .question-map {
     grid-template-columns: repeat(10, 1fr);
   }
+
+  .landing-page {
+    margin-top: -16px;
+  }
+
+  .landing-hero {
+    min-height: min(640px, calc(100svh - 76px));
+    padding: 54px 18px 82px;
+    background:
+      linear-gradient(180deg, rgba(247, 249, 245, 0.98) 0%, rgba(247, 249, 245, 0.84) 56%, rgba(247, 249, 245, 0.42) 100%),
+      url("/assets/landing-hero.png") 63% center / cover no-repeat;
+  }
+
+  .landing-actions,
+  .landing-actions .btn {
+    width: 100%;
+  }
+
+  .landing-note {
+    width: 100%;
+  }
+
+  .landing-summary {
+    width: min(100% - 20px, 1180px);
+    margin-bottom: 28px;
+  }
 }
 
 @media (max-width: 420px) {
@@ -754,6 +904,14 @@ button {
 
   .question-map {
     grid-template-columns: repeat(7, 1fr);
+  }
+
+  .landing-copy h1 {
+    font-size: 1.78rem;
+  }
+
+  .landing-summary div {
+    padding: 16px;
   }
 }
 

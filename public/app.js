@@ -39,6 +39,11 @@ function renderRoute() {
 }
 
 function renderSurveyOrResult() {
+  if (!surveyState.hasStarted && !hasAnyAnswer(surveyState)) {
+    app.innerHTML = renderLanding();
+    return;
+  }
+
   if (isComplete(surveyState)) {
     const result = currentScore();
     app.innerHTML = renderReport(result, {
@@ -55,6 +60,38 @@ function renderSurveyOrResult() {
   }
 
   app.innerHTML = renderSurvey();
+}
+
+function renderLanding() {
+  return `
+    <section class="landing-page">
+      <div class="landing-hero">
+        <div class="landing-copy">
+          <span class="landing-kicker">AI Attitude Profile</span>
+          <h1>AI 态度六维画像问卷</h1>
+          <p>通过 98 道 7 点量表题，了解你对 AI 的风险、信任、治理、采用、伦理和人机关系的当前态度画像。</p>
+          <div class="landing-actions">
+            <button class="btn primary landing-start" type="button" data-action="begin-survey">开始问卷</button>
+            <span class="landing-note">约 8-12 分钟 · 题目随机呈现 · 完成后生成分享链接</span>
+          </div>
+        </div>
+      </div>
+      <div class="landing-summary" aria-label="问卷说明">
+        <div>
+          <strong>六个一级维度</strong>
+          <span>威胁感知、技术信任度、控制与治理偏好、赋能与采用倾向、伦理敏感度、人机关系观。</span>
+        </div>
+        <div>
+          <strong>即时计算结果</strong>
+          <span>完成后展示雷达图、子维度明细、高低分组合和谨慎的画像标签。</span>
+        </div>
+        <div>
+          <strong>可分享报告</strong>
+          <span>结果保存到 D1 数据库，其他人可以通过链接查看结果并开始自己的测试。</span>
+        </div>
+      </div>
+    </section>
+  `;
 }
 
 function renderSurvey() {
@@ -417,12 +454,14 @@ function handleClick(event) {
     copyShare(control.dataset.copyValue || "");
   } else if (action === "start-own-test") {
     startOwnTest();
+  } else if (action === "begin-survey") {
+    beginSurvey();
   }
 }
 
 function handleKeydown(event) {
   if (shouldIgnoreKeyboardShortcut(event)) return;
-  if (getSharedId() || !surveyState || isComplete(surveyState)) return;
+  if (getSharedId() || !surveyState?.hasStarted || isComplete(surveyState)) return;
 
   if (event.key === "ArrowLeft") {
     event.preventDefault();
@@ -518,6 +557,22 @@ function startOwnTest() {
   copyMessage = "";
   saveSurveyState();
   history.pushState(null, "", "/");
+  renderRoute();
+}
+
+function beginSurvey() {
+  if (!surveyState || isComplete(surveyState)) {
+    surveyState = createSurveyState();
+  }
+  surveyState.hasStarted = true;
+  surveyState.startedAt = Date.now();
+  surveyState.completedAt = null;
+  surveyState.saveStatus = "idle";
+  surveyState.savedId = "";
+  surveyState.shareUrl = "";
+  surveyState.saveError = "";
+  copyMessage = "";
+  saveSurveyState();
   renderRoute();
 }
 
@@ -619,8 +674,13 @@ function isComplete(state) {
   return answeredCount(state) === QUESTIONS.length;
 }
 
+function hasAnyAnswer(state) {
+  return answeredCount(state) > 0;
+}
+
 function createSurveyState() {
   return {
+    hasStarted: false,
     order: shuffle(QUESTIONS.map((question) => question.id)),
     answers: {},
     currentIndex: 0,
@@ -653,7 +713,14 @@ function loadSurveyState() {
       }
     }
 
+    const hasStarted =
+      Boolean(parsed.hasStarted) ||
+      Object.keys(answers).length > 0 ||
+      Boolean(parsed.completedAt) ||
+      parsed.saveStatus === "saved";
+
     return {
+      hasStarted,
       order,
       answers,
       currentIndex: clamp(Number(parsed.currentIndex) || 0, 0, QUESTIONS.length - 1),
