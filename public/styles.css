@@ -528,8 +528,7 @@ button {
   padding: 14px 14px 0;
 }
 
-.character-head span,
-.character-type {
+.character-head span {
   color: var(--muted);
   font-size: 0.86rem;
 }
@@ -538,13 +537,6 @@ button {
   display: block;
   margin-top: 4px;
   font-size: 1rem;
-}
-
-.character-type {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.74);
 }
 
 .character-stage {
@@ -575,8 +567,6 @@ button {
 
 .role-toggle {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
   padding: 10px;
 }
 
@@ -589,10 +579,12 @@ button {
   cursor: pointer;
 }
 
-.role-toggle button.is-active {
+.role-toggle button:hover,
+.role-toggle button:focus-visible {
   border-color: var(--role-accent);
   background: var(--role-accent);
   color: #ffffff;
+  outline: none;
 }
 
 .radar-chart {

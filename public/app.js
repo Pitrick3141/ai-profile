@@ -404,7 +404,7 @@ function renderDimensionRow(dimension) {
 }
 
 function renderCharacterPanel(label, visual) {
-  const typeText = selectedRoleVariant === 1 ? "类型 1" : "类型 2";
+  const nextVariant = selectedRoleVariant === 1 ? 2 : 1;
   return `
     <div class="character-panel" style="--role-accent:${escapeAttribute(visual.accent)}; --role-soft:${escapeAttribute(visual.soft)}">
       <div class="character-head">
@@ -412,14 +412,12 @@ function renderCharacterPanel(label, visual) {
           <span>画像角色</span>
           <strong>${escapeHtml(visual.title)}</strong>
         </div>
-        <span class="character-type">${typeText}</span>
       </div>
-      <div class="character-stage" aria-label="${escapeAttribute(label)}${typeText}角色">
+      <div class="character-stage" aria-label="${escapeAttribute(label)}角色">
         <div class="character-sprite variant-${selectedRoleVariant}" style="background-image:url('${escapeAttribute(visual.asset)}')"></div>
       </div>
-      <div class="role-toggle" role="group" aria-label="选择画像角色类型">
-        <button class="${selectedRoleVariant === 1 ? "is-active" : ""}" type="button" data-action="select-role" data-variant="1">类型 1</button>
-        <button class="${selectedRoleVariant === 2 ? "is-active" : ""}" type="button" data-action="select-role" data-variant="2">类型 2</button>
+      <div class="role-toggle">
+        <button type="button" data-action="select-role" data-variant="${nextVariant}" aria-label="切换画像角色">切换角色</button>
       </div>
     </div>
   `;
@@ -855,7 +853,7 @@ async function downloadShareImage(shareUrl) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `ai-profile-${getProfileSlug(result.profile?.mainLabel)}-type-${selectedRoleVariant}.png`;
+    link.download = `ai-profile-${getProfileSlug(result.profile?.mainLabel)}.png`;
     document.body.append(link);
     link.click();
     link.remove();
@@ -902,15 +900,19 @@ async function createShareImageBlob(result, shareUrl, variant) {
   drawCanvasText(ctx, label, 104, 280, 456, 64, 2);
   ctx.fillStyle = visual.accent;
   ctx.font = "700 26px Microsoft YaHei, sans-serif";
-  ctx.fillText(`${visual.title} · 类型 ${variant}`, 106, 354);
+  ctx.fillText(visual.title, 106, 354);
 
   const cropWidth = roleImage.naturalWidth / 2;
   const cropX = variant === 1 ? 0 : cropWidth;
   drawImageCover(ctx, roleImage, cropX, 0, cropWidth, roleImage.naturalHeight, 626, 230, 300, 326);
 
   ctx.fillStyle = "#42524c";
-  ctx.font = "400 28px Microsoft YaHei, sans-serif";
-  drawCanvasText(ctx, summary, 104, 424, 500, 44, 7);
+  drawCanvasTextFit(ctx, summary, 104, 414, 500, 31, 780, {
+    fontFamily: "Microsoft YaHei, sans-serif",
+    fontWeight: 400,
+    maxFontSize: 22,
+    minFontSize: 16,
+  });
 
   const dimensions = (result.dimensionScores || []).slice(0, 6);
   let y = 800;
@@ -1035,7 +1037,27 @@ function drawCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 4) {
   }
 }
 
-function wrapCanvasText(ctx, text, maxWidth, maxLines) {
+function drawCanvasTextFit(ctx, text, x, y, maxWidth, lineHeight, maxBottom, options = {}) {
+  const fontFamily = options.fontFamily || "sans-serif";
+  const fontWeight = options.fontWeight || 400;
+  const minFontSize = options.minFontSize || 16;
+  const maxFontSize = options.maxFontSize || 24;
+  const maxLines = Math.max(1, Math.floor((maxBottom - y) / lineHeight) + 1);
+  let lines = [];
+  let fontSize = maxFontSize;
+
+  for (; fontSize >= minFontSize; fontSize -= 1) {
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    lines = wrapCanvasText(ctx, text, maxWidth, maxLines, { ellipsis: false });
+    if (lines.join("") === String(text || "")) break;
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    ctx.fillText(lines[index], x, y + index * lineHeight);
+  }
+}
+
+function wrapCanvasText(ctx, text, maxWidth, maxLines, options = {}) {
   const chars = String(text || "").split("");
   const lines = [];
   let line = "";
@@ -1050,7 +1072,7 @@ function wrapCanvasText(ctx, text, maxWidth, maxLines) {
     }
   }
   if (line && lines.length < maxLines) lines.push(line);
-  if (lines.length === maxLines && chars.join("").length > lines.join("").length) {
+  if (options.ellipsis !== false && lines.length === maxLines && chars.join("").length > lines.join("").length) {
     lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, Math.max(0, lines[maxLines - 1].length - 1))}…`;
   }
   return lines;
