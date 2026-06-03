@@ -1,0 +1,10 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "ai-profile"
+compatibility_date = "2026-06-03"
+pages_build_output_dir = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-profile-results"
+database_id = "a36e7938-5fc3-4cd5-b04c-6213aab1e80e"
+migrations_dir = "migrations"

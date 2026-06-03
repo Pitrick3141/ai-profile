@@ -1,0 +1,13 @@
+{
+  "name": "ai-profile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx wrangler@latest pages dev public",
+    "deploy": "npx wrangler@latest pages deploy public",
+    "d1:create": "npx wrangler@latest d1 create ai-profile-results",
+    "d1:migrate:local": "npx wrangler@latest d1 migrations apply ai-profile-results --local",
+    "d1:migrate:remote": "npx wrangler@latest d1 migrations apply ai-profile-results --remote"
+  }
+}
