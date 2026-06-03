@@ -548,24 +548,30 @@ button {
 }
 
 .character-stage {
-  height: 250px;
-  margin-top: 4px;
+  position: relative;
+  aspect-ratio: 700 / 760;
+  margin: 10px 14px 0;
   overflow: hidden;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.38);
 }
 
 .character-sprite {
-  width: 100%;
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 200%;
   height: 100%;
   background-repeat: no-repeat;
-  background-size: 200% 100%;
+  background-position: center;
+  background-size: cover;
 }
 
 .character-sprite.variant-1 {
-  background-position: left center;
+  transform: translateX(0);
 }
 
 .character-sprite.variant-2 {
-  background-position: right center;
+  transform: translateX(-50%);
 }
 
 .role-toggle {
@@ -862,10 +868,6 @@ button {
     align-items: center;
   }
 
-  .character-stage {
-    height: 280px;
-  }
-
   .side-panel {
     position: static;
   }
@@ -998,9 +1000,6 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .character-stage {
-    height: 250px;
-  }
 }
 
 @media (max-width: 420px) {

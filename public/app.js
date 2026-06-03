@@ -906,11 +906,11 @@ async function createShareImageBlob(result, shareUrl, variant) {
 
   const cropWidth = roleImage.naturalWidth / 2;
   const cropX = variant === 1 ? 0 : cropWidth;
-  drawImageCover(ctx, roleImage, cropX, 0, cropWidth, roleImage.naturalHeight, 566, 180, 342, 430);
+  drawImageCover(ctx, roleImage, cropX, 0, cropWidth, roleImage.naturalHeight, 626, 230, 300, 326);
 
   ctx.fillStyle = "#42524c";
   ctx.font = "400 28px Microsoft YaHei, sans-serif";
-  drawCanvasText(ctx, summary, 104, 470, 860, 44, 7);
+  drawCanvasText(ctx, summary, 104, 424, 500, 44, 7);
 
   const dimensions = (result.dimensionScores || []).slice(0, 6);
   let y = 800;
