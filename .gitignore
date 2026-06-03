@@ -58,3 +58,6 @@ tmp/
 temp/
 *.tmp
 *.bak
+
+# Unoptimized generated role sources; WebP role assets are used by the app
+public/assets/role-*.png

@@ -507,6 +507,89 @@ button {
   width: min(360px, 100%);
 }
 
+.report-visual-stack {
+  display: grid;
+  width: min(380px, 100%);
+  gap: 14px;
+}
+
+.character-panel {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--role-accent) 30%, var(--line));
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--role-soft), #ffffff 58%);
+}
+
+.character-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 14px 0;
+}
+
+.character-head span,
+.character-type {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.character-head strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1rem;
+}
+
+.character-type {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.character-stage {
+  height: 250px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.character-sprite {
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 200% 100%;
+}
+
+.character-sprite.variant-1 {
+  background-position: left center;
+}
+
+.character-sprite.variant-2 {
+  background-position: right center;
+}
+
+.role-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px;
+}
+
+.role-toggle button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.role-toggle button.is-active {
+  border-color: var(--role-accent);
+  background: var(--role-accent);
+  color: #ffffff;
+}
+
 .radar-chart {
   width: 100%;
   height: auto;
@@ -606,6 +689,32 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 9px;
+}
+
+.share-row.secondary {
+  grid-template-columns: 1fr;
+  margin-top: 9px;
+}
+
+.qr-preview {
+  display: grid;
+  width: 132px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.qr-svg {
+  width: 100%;
+  height: auto;
+}
+
+.qr-fallback {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .share-row input {
@@ -743,8 +852,18 @@ button {
   }
 
   .status-strip,
-  .chart-shell {
+  .chart-shell,
+  .report-visual-stack {
     width: 100%;
+  }
+
+  .report-visual-stack {
+    grid-template-columns: minmax(280px, 0.8fr) minmax(260px, 1fr);
+    align-items: center;
+  }
+
+  .character-stage {
+    height: 280px;
   }
 
   .side-panel {
@@ -873,6 +992,14 @@ button {
   .landing-summary {
     width: min(100% - 20px, 1180px);
     margin-bottom: 28px;
+  }
+
+  .report-visual-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .character-stage {
+    height: 250px;
   }
 }
 

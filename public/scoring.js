@@ -126,40 +126,104 @@ const FIRST_DIMENSION_FORMULAS = [
 
 const PROFILE_RULES = [
   {
-    label: "积极采用型",
-    when: ({ first }) => first["赋能与采用倾向"] >= 5 && first["技术信任度"] >= 4.5 && first["威胁感知"] <= 4.5,
-    summary: "认为 AI 有价值，也愿意在实际生活或工作中使用。",
-  },
-  {
-    label: "审慎采用型",
-    when: ({ first }) => first["赋能与采用倾向"] >= 4.5 && first["伦理敏感度"] >= 5 && first["控制与治理偏好"] >= 5,
-    summary: "愿意用 AI，同时强调规则、责任和边界。",
-  },
-  {
     label: "防御怀疑型",
+    priority: 98,
     when: ({ first }) => first["威胁感知"] >= 5 && first["技术信任度"] <= 3.5 && first["赋能与采用倾向"] <= 4,
     summary: "对 AI 风险和替代压力敏感，采用意愿较弱。",
   },
   {
     label: "技术加速型",
+    priority: 96,
     when: ({ first }) => first["赋能与采用倾向"] >= 5 && first["技术信任度"] >= 5 && first["控制与治理偏好"] <= 3.5,
     summary: "偏向开放发展和快速部署，对约束需求较低。",
   },
   {
-    label: "伦理监管型",
-    when: ({ first }) => first["伦理敏感度"] >= 5.5 && first["控制与治理偏好"] >= 5,
-    summary: "高度关注隐私、公平、透明和责任问题。",
+    label: "审慎采用型",
+    priority: 94,
+    when: ({ first }) => first["赋能与采用倾向"] >= 4.5 && first["伦理敏感度"] >= 5 && first["控制与治理偏好"] >= 5,
+    summary: "愿意用 AI，同时强调规则、责任和边界。",
+  },
+  {
+    label: "关系陪伴型",
+    priority: 92,
+    when: ({ first, sub }) =>
+      first["人机关系观"] >= 5 && (sub["伙伴化"] >= 5 || sub["拟人化/情感依赖"] >= 5),
+    summary: "较容易接受 AI 作为助手、陪伴者、教练或情绪交流对象。",
   },
   {
     label: "工具主义高效型",
+    priority: 90,
     when: ({ first }) => first["赋能与采用倾向"] >= 5 && first["人机关系观"] <= 3.5,
     summary: "愿意使用 AI 提升效率，但不倾向于人格化或情感化 AI。",
   },
   {
-    label: "关系陪伴型",
-    when: ({ first, sub }) =>
-      first["人机关系观"] >= 5 && (sub["伙伴化"] >= 5 || sub["拟人化/情感依赖"] >= 5),
-    summary: "较容易接受 AI 作为助手、陪伴者、教练或情绪交流对象。",
+    label: "稳健协作型",
+    priority: 88,
+    when: ({ first }) =>
+      first["赋能与采用倾向"] >= 5 &&
+      first["技术信任度"] >= 4.5 &&
+      first["控制与治理偏好"] >= 4.5 &&
+      first["伦理敏感度"] >= 4.5 &&
+      first["人机关系观"] >= 4,
+    summary: "既愿意把 AI 纳入协作，也保留对质量、责任和边界的持续校准。",
+  },
+  {
+    label: "风险预警型",
+    priority: 86,
+    when: ({ first }) => first["威胁感知"] >= 5.5 && first["伦理敏感度"] >= 4.8 && first["控制与治理偏好"] >= 4.5,
+    summary: "对 AI 的社会后果和治理边界保持高敏感度，倾向提前识别风险。",
+  },
+  {
+    label: "能力建设型",
+    priority: 84,
+    when: ({ first, sub }) => first["赋能与采用倾向"] >= 4.3 && sub["自我效能感"] <= 3.8 && sub["效用感"] >= 4.5,
+    summary: "认可 AI 的价值，但更需要方法、练习和支持来建立使用信心。",
+  },
+  {
+    label: "隐私守门型",
+    priority: 82,
+    when: ({ sub }) => sub["隐私"] >= 5.6,
+    summary: "对数据收集、敏感信息和使用边界格外谨慎，重视可控的隐私保护。",
+  },
+  {
+    label: "透明审查型",
+    priority: 80,
+    when: ({ sub }) => sub["透明度"] >= 5.6 && sub["责任归属"] >= 5,
+    summary: "希望 AI 的依据、限制和责任链条可解释、可追踪、可申诉。",
+  },
+  {
+    label: "自主实验型",
+    priority: 78,
+    when: ({ first, sub }) => sub["AI自主性接受"] >= 5 && first["控制与治理偏好"] <= 4.2 && first["赋能与采用倾向"] >= 4.8,
+    summary: "愿意尝试更自动化的 AI 流程，倾向在实践中快速验证边界。",
+  },
+  {
+    label: "实用探索型",
+    priority: 76,
+    when: ({ first }) =>
+      first["赋能与采用倾向"] >= 4.3 &&
+      first["赋能与采用倾向"] < 5.3 &&
+      first["技术信任度"] >= 3.8 &&
+      first["威胁感知"] <= 5,
+    summary: "愿意尝试有明确收益的 AI 用法，同时保留观察和筛选。",
+  },
+  {
+    label: "冷静旁观型",
+    priority: 74,
+    when: ({ first }) => first["赋能与采用倾向"] <= 3.8 && first["威胁感知"] <= 4.5 && first["人机关系观"] <= 4.2,
+    summary: "对 AI 不急于投入，也不一定强烈排斥，更倾向保持距离观察。",
+  },
+  {
+    label: "伦理监管型",
+    priority: 72,
+    when: ({ first }) => first["伦理敏感度"] >= 5.5 && first["控制与治理偏好"] >= 5,
+    summary: "高度关注隐私、公平、透明和责任问题。",
+  },
+  {
+    label: "积极采用型",
+    priority: 70,
+    when: ({ first }) => first["赋能与采用倾向"] >= 5 && first["技术信任度"] >= 4.5 && first["威胁感知"] <= 4.5,
+    summary: "认为 AI 有价值，也愿意在实际生活或工作中使用。",
   },
 ];
 
@@ -313,10 +377,12 @@ export function deriveProfile(dimensionScores, subdimensionScores) {
   const sub = Object.fromEntries(
     subdimensionScores.map((item) => [item.name, item.rawScore === null ? null : item.rawScore]),
   );
-  const labels = PROFILE_RULES.filter((rule) => safeRule(rule, { first, sub })).map((rule) => ({
-    label: rule.label,
-    summary: rule.summary,
-  }));
+  const labels = PROFILE_RULES.filter((rule) => safeRule(rule, { first, sub }))
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+    .map((rule) => ({
+      label: rule.label,
+      summary: rule.summary,
+    }));
   const rankedDimensions = dimensionScores
     .filter((item) => item.rawScore !== null)
     .slice()
@@ -340,6 +406,10 @@ export function deriveProfile(dimensionScores, subdimensionScores) {
 
 export function toScore100(rawScore) {
   return round(((rawScore - 1) / 6) * 100, 1);
+}
+
+export function toScore10(rawScore) {
+  return round(((rawScore - 1) / 6) * 10, 1);
 }
 
 export function levelForRaw(rawScore) {
@@ -366,6 +436,7 @@ function compactScore(item) {
     name: item.name,
     rawScore: round(item.rawScore, 2),
     score100: toScore100(item.rawScore),
+    score10: toScore10(item.rawScore),
     level: item.level,
   };
 }
@@ -379,9 +450,13 @@ function safeRule(rule, scoreMaps) {
 }
 
 function buildNarrative(label, summary, high, low) {
-  const highText = high.length ? high.map((item) => `${item.name}${round(item.rawScore, 2)}`).join("、") : "暂无";
-  const lowText = low.length ? low.map((item) => `${item.name}${round(item.rawScore, 2)}`).join("、") : "暂无";
+  const highText = high.length ? high.map((item) => `${item.name}${formatScore10Text(item.rawScore)}`).join("、") : "暂无";
+  const lowText = low.length ? low.map((item) => `${item.name}${formatScore10Text(item.rawScore)}`).join("、") : "暂无";
   return `${label}：${summary} 当前高分维度为 ${highText}；相对低分维度为 ${lowText}。这些结果描述的是当下态度画像，不是固定人格判断。`;
+}
+
+function formatScore10Text(rawScore) {
+  return `${toScore10(rawScore).toFixed(1)}/10`;
 }
 
 function longestRun(answers, order) {

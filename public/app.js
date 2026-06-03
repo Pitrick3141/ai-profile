@@ -2,13 +2,115 @@ import { QUESTIONS } from "./questionnaire.js";
 import { LIKERT_OPTIONS, round, scoreQuestionnaire } from "./scoring.js";
 
 const STORAGE_KEY = "ai-attitude-questionnaire-state-v1";
+const ROLE_VARIANT_KEY = "ai-attitude-role-variant-v1";
 const app = document.querySelector("#app");
 const questionsById = new Map(QUESTIONS.map((question) => [question.id, question]));
+
+const PROFILE_VISUALS = {
+  防御怀疑型: {
+    asset: "/assets/role-defensive-skeptic.webp",
+    accent: "#7f2d2d",
+    soft: "#f4e6e2",
+    title: "风险边界观察者",
+  },
+  技术加速型: {
+    asset: "/assets/role-tech-accelerator.webp",
+    accent: "#0f766e",
+    soft: "#dff4ec",
+    title: "快速部署推动者",
+  },
+  审慎采用型: {
+    asset: "/assets/role-cautious-adopter.webp",
+    accent: "#9a620e",
+    soft: "#fff2df",
+    title: "规则感采用者",
+  },
+  关系陪伴型: {
+    asset: "/assets/role-relational-companion.webp",
+    accent: "#be4b43",
+    soft: "#fde8e2",
+    title: "关系型协作者",
+  },
+  工具主义高效型: {
+    asset: "/assets/role-pragmatic-efficiency.webp",
+    accent: "#334155",
+    soft: "#e8eef0",
+    title: "效率工具派",
+  },
+  稳健协作型: {
+    asset: "/assets/role-balanced-collaborator.webp",
+    accent: "#526d42",
+    soft: "#edf3e7",
+    title: "稳健协作派",
+  },
+  风险预警型: {
+    asset: "/assets/role-risk-sentinel.webp",
+    accent: "#b45309",
+    soft: "#fff3d6",
+    title: "前置风险哨兵",
+  },
+  能力建设型: {
+    asset: "/assets/role-capability-builder.webp",
+    accent: "#256f8f",
+    soft: "#e1f2f6",
+    title: "能力成长者",
+  },
+  隐私守门型: {
+    asset: "/assets/role-privacy-guardian.webp",
+    accent: "#047857",
+    soft: "#def4ea",
+    title: "数据边界守门人",
+  },
+  透明审查型: {
+    asset: "/assets/role-transparency-auditor.webp",
+    accent: "#256e8d",
+    soft: "#e3f1f5",
+    title: "透明度审查者",
+  },
+  自主实验型: {
+    asset: "/assets/role-autonomous-experimenter.webp",
+    accent: "#0d9488",
+    soft: "#daf7ed",
+    title: "自主流程实验者",
+  },
+  实用探索型: {
+    asset: "/assets/role-practical-explorer.webp",
+    accent: "#8a6f18",
+    soft: "#f5efd7",
+    title: "实用探索者",
+  },
+  冷静旁观型: {
+    asset: "/assets/role-calm-observer.webp",
+    accent: "#60716b",
+    soft: "#e9efeb",
+    title: "冷静观察者",
+  },
+  伦理监管型: {
+    asset: "/assets/role-ethics-regulator.webp",
+    accent: "#93640f",
+    soft: "#f7edcf",
+    title: "伦理监管者",
+  },
+  积极采用型: {
+    asset: "/assets/role-active-adopter.webp",
+    accent: "#2f7d32",
+    soft: "#e3f3df",
+    title: "积极采用者",
+  },
+  均衡观察型: {
+    asset: "/assets/role-balanced-observer.webp",
+    accent: "#56766a",
+    soft: "#e8f0eb",
+    title: "均衡观察者",
+  },
+};
 
 let surveyState = loadSurveyState();
 let sharedState = null;
 let saveInFlight = false;
 let copyMessage = "";
+let selectedRoleVariant = loadRoleVariant();
+let shareImageMessage = "";
 
 window.addEventListener("popstate", renderRoute);
 window.addEventListener("keydown", handleKeydown);
@@ -128,14 +230,14 @@ function renderSurvey() {
         </div>
         <div class="question-actions">
           <div class="button-group">
+            <button class="btn subtle" type="button" data-action="next-unanswered">下一道未答题</button>
+            <button class="btn warning" type="button" data-action="reset">重新开始</button>
+          </div>
+          <div class="button-group">
             <button class="btn" type="button" data-action="prev" ${surveyState.currentIndex === 0 ? "disabled" : ""}>上一题</button>
             <button class="btn primary" type="button" data-action="next">
               ${surveyState.currentIndex === total - 1 ? "完成" : "下一题"}
             </button>
-          </div>
-          <div class="button-group">
-            <button class="btn subtle" type="button" data-action="next-unanswered">下一道未答题</button>
-            <button class="btn warning" type="button" data-action="reset">重新开始</button>
           </div>
         </div>
       </article>
@@ -223,9 +325,11 @@ function renderSharedResult() {
 function renderReport(result, options) {
   const dimensions = result.dimensionScores || [];
   const subdimensions = result.subdimensionScores || [];
+  const primaryLabel = result.profile?.mainLabel || "均衡观察型";
+  const visual = getProfileVisual(primaryLabel);
   const labels = result.profile?.labels?.length
     ? result.profile.labels
-    : [{ label: result.profile?.mainLabel || "均衡观察型" }];
+    : [{ label: primaryLabel }];
   const metaText = result.createdAt ? `生成于 ${formatDate(result.createdAt)}` : formatDuration(result.durationMs);
 
   return `
@@ -247,9 +351,12 @@ function renderReport(result, options) {
             ${labels.map((item) => `<span class="profile-label">${escapeHtml(item.label)}</span>`).join("")}
           </div>
           <h1>${escapeHtml(result.profile?.mainLabel || "AI 态度画像")}</h1>
-          <p>${escapeHtml(result.profile?.narrative || result.profile?.mainSummary || "")}</p>
+          <p>${escapeHtml(reportNarrative(result))}</p>
         </div>
-        <div class="chart-shell">${renderRadarChart(dimensions)}</div>
+        <div class="report-visual-stack">
+          ${renderCharacterPanel(primaryLabel, visual)}
+          <div class="chart-shell">${renderRadarChart(dimensions)}</div>
+        </div>
       </div>
 
       <div class="report-grid">
@@ -288,7 +395,7 @@ function renderDimensionRow(dimension) {
     <div class="score-row">
       <div class="score-head">
         <span class="score-name">${escapeHtml(dimension.name)}</span>
-        <span class="score-value">${formatRaw(dimension.rawScore)} / ${formatScore100(dimension.score100)} · ${escapeHtml(dimension.level)}</span>
+        <span class="score-value">${formatScore10(dimension)} · ${escapeHtml(dimension.level)}</span>
       </div>
       <div class="bar-track"><div class="bar-fill" style="width:${clamp(score100, 0, 100)}%"></div></div>
       <div class="score-note">${escapeHtml(dimension.meaning || "")}</div>
@@ -296,10 +403,32 @@ function renderDimensionRow(dimension) {
   `;
 }
 
+function renderCharacterPanel(label, visual) {
+  const typeText = selectedRoleVariant === 1 ? "类型 1" : "类型 2";
+  return `
+    <div class="character-panel" style="--role-accent:${escapeAttribute(visual.accent)}; --role-soft:${escapeAttribute(visual.soft)}">
+      <div class="character-head">
+        <div>
+          <span>画像角色</span>
+          <strong>${escapeHtml(visual.title)}</strong>
+        </div>
+        <span class="character-type">${typeText}</span>
+      </div>
+      <div class="character-stage" aria-label="${escapeAttribute(label)}${typeText}角色">
+        <div class="character-sprite variant-${selectedRoleVariant}" style="background-image:url('${escapeAttribute(visual.asset)}')"></div>
+      </div>
+      <div class="role-toggle" role="group" aria-label="选择画像角色类型">
+        <button class="${selectedRoleVariant === 1 ? "is-active" : ""}" type="button" data-action="select-role" data-variant="1">类型 1</button>
+        <button class="${selectedRoleVariant === 2 ? "is-active" : ""}" type="button" data-action="select-role" data-variant="2">类型 2</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderSubdimension(item) {
   return `
     <div class="sub-score">
-      <strong>${escapeHtml(item.name)} · ${formatRaw(item.rawScore)} / ${formatScore100(item.score100)}</strong>
+      <strong>${escapeHtml(item.name)} · ${formatScore10(item)}</strong>
       <span>${escapeHtml(item.level)}。${escapeHtml(item.description || "")}</span>
     </div>
   `;
@@ -319,7 +448,7 @@ function renderInsightList(title, items) {
             (item) => `
               <li>
                 <span>${escapeHtml(item.name)}</span>
-                <strong>${formatRaw(item.rawScore)} / ${formatScore100(item.score100)}</strong>
+                <strong>${formatScore10(item)}</strong>
               </li>
             `,
           )
@@ -327,6 +456,20 @@ function renderInsightList(title, items) {
       </ul>
     </div>
   `;
+}
+
+function reportNarrative(result) {
+  const profile = result.profile || {};
+  const highText = formatScoreList(profile.topDimensions || []);
+  const lowText = formatScoreList(profile.lowDimensions || []);
+  const label = profile.mainLabel || "AI 态度画像";
+  const summary = profile.mainSummary || "这些维度描述的是你当前对 AI 的态度组合。";
+  return `${label}：${summary} 当前高分维度为 ${highText}；相对低分维度为 ${lowText}。这些结果描述的是当下态度画像，不是固定人格判断。`;
+}
+
+function formatScoreList(items) {
+  if (!items.length) return "暂无";
+  return items.map((item) => `${item.name} ${formatScore10(item)}`).join("、");
 }
 
 function renderValidity(validity = {}) {
@@ -369,12 +512,41 @@ function renderShareBox(options) {
 
   return `
     <p class="share-title">分享链接</p>
+    <div class="qr-preview">${renderQrSvg(options.shareUrl)}</div>
     <div class="share-row">
       <input id="share-url" type="text" readonly value="${escapeAttribute(options.shareUrl)}" aria-label="分享链接" />
       <button class="btn primary" type="button" data-action="copy-share" data-copy-value="${escapeAttribute(options.shareUrl)}">复制</button>
     </div>
+    <div class="share-row secondary">
+      <button class="btn subtle" type="button" data-action="download-share-image" data-share-url="${escapeAttribute(options.shareUrl)}">生成分享截图</button>
+    </div>
     <p class="share-message">${escapeHtml(copyMessage || "通过这个链接可以查看结果，也可以开始新的测试。")}</p>
+    ${shareImageMessage ? `<p class="share-message">${escapeHtml(shareImageMessage)}</p>` : ""}
   `;
+}
+
+function renderQrSvg(value) {
+  try {
+    const matrix = createQrMatrix(value);
+    const quiet = 4;
+    const size = matrix.length + quiet * 2;
+    const cells = [];
+    for (let row = 0; row < matrix.length; row += 1) {
+      for (let col = 0; col < matrix.length; col += 1) {
+        if (matrix[row][col]) {
+          cells.push(`M${col + quiet},${row + quiet}h1v1h-1z`);
+        }
+      }
+    }
+    return `
+      <svg class="qr-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="分享链接二维码">
+        <rect width="${size}" height="${size}" fill="#fff"></rect>
+        <path d="${cells.join("")}" fill="#1e2a27"></path>
+      </svg>
+    `;
+  } catch {
+    return `<div class="qr-fallback">二维码将在生成分享截图时创建</div>`;
+  }
 }
 
 function renderRadarChart(dimensions) {
@@ -456,7 +628,23 @@ function handleClick(event) {
     startOwnTest();
   } else if (action === "begin-survey") {
     beginSurvey();
+  } else if (action === "select-role") {
+    selectRoleVariant(Number(control.dataset.variant));
+  } else if (action === "download-share-image") {
+    downloadShareImage(control.dataset.shareUrl || "");
   }
+}
+
+function selectRoleVariant(variant) {
+  if (![1, 2].includes(variant)) return;
+  selectedRoleVariant = variant;
+  shareImageMessage = "";
+  try {
+    localStorage.setItem(ROLE_VARIANT_KEY, String(variant));
+  } catch {
+    // Role choice remains in memory if browser storage is unavailable.
+  }
+  renderRoute();
 }
 
 function handleKeydown(event) {
@@ -654,11 +842,234 @@ async function copyShare(value) {
   renderRoute();
 }
 
+async function downloadShareImage(shareUrl) {
+  const result = activeReportResult();
+  if (!result || !shareUrl) {
+    shareImageMessage = "分享链接生成后才能生成截图。";
+    renderRoute();
+    return;
+  }
+
+  try {
+    const blob = await createShareImageBlob(result, shareUrl, selectedRoleVariant);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ai-profile-${getProfileSlug(result.profile?.mainLabel)}-type-${selectedRoleVariant}.png`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    shareImageMessage = "分享截图已生成并下载。";
+  } catch (error) {
+    shareImageMessage = error instanceof Error ? error.message : "生成分享截图失败。";
+  }
+  renderRoute();
+}
+
+function activeReportResult() {
+  if (sharedState?.status === "loaded") return sharedState.result;
+  if (surveyState && isComplete(surveyState)) return currentScore();
+  return null;
+}
+
+async function createShareImageBlob(result, shareUrl, variant) {
+  const label = result.profile?.mainLabel || "均衡观察型";
+  const visual = getProfileVisual(label);
+  const roleImage = await loadImage(visual.asset);
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1440;
+  const ctx = canvas.getContext("2d");
+  const summary = reportNarrative(result);
+
+  ctx.fillStyle = "#f7f9f5";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = visual.soft;
+  ctx.fillRect(0, 0, canvas.width, 420);
+  drawRoundedRect(ctx, 54, 54, 972, 1332, 28, "#ffffff");
+  drawRoundedRect(ctx, 78, 78, 924, 126, 20, visual.soft);
+
+  ctx.fillStyle = visual.accent;
+  ctx.font = "700 28px Microsoft YaHei, sans-serif";
+  ctx.fillText("AI 态度六维画像", 104, 128);
+  ctx.fillStyle = "#62706a";
+  ctx.font = "400 22px Microsoft YaHei, sans-serif";
+  ctx.fillText("AI Attitude Profile", 104, 166);
+
+  ctx.fillStyle = "#1e2a27";
+  ctx.font = "800 54px Microsoft YaHei, sans-serif";
+  drawCanvasText(ctx, label, 104, 280, 456, 64, 2);
+  ctx.fillStyle = visual.accent;
+  ctx.font = "700 26px Microsoft YaHei, sans-serif";
+  ctx.fillText(`${visual.title} · 类型 ${variant}`, 106, 354);
+
+  const cropWidth = roleImage.naturalWidth / 2;
+  const cropX = variant === 1 ? 0 : cropWidth;
+  drawImageCover(ctx, roleImage, cropX, 0, cropWidth, roleImage.naturalHeight, 566, 180, 342, 430);
+
+  ctx.fillStyle = "#42524c";
+  ctx.font = "400 28px Microsoft YaHei, sans-serif";
+  drawCanvasText(ctx, summary, 104, 470, 860, 44, 7);
+
+  const dimensions = (result.dimensionScores || []).slice(0, 6);
+  let y = 800;
+  ctx.font = "700 28px Microsoft YaHei, sans-serif";
+  ctx.fillStyle = "#1e2a27";
+  ctx.fillText("六维概览", 104, y);
+  y += 34;
+  for (const dimension of dimensions) {
+    const score = formatScore10(dimension);
+    ctx.fillStyle = "#1e2a27";
+    ctx.font = "700 23px Microsoft YaHei, sans-serif";
+    ctx.fillText(dimension.name, 104, y + 26);
+    ctx.fillStyle = "#62706a";
+    ctx.font = "700 22px Microsoft YaHei, sans-serif";
+    ctx.fillText(score, 360, y + 26);
+    ctx.fillStyle = "#e1e9e2";
+    roundRectPath(ctx, 478, y + 8, 390, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = visual.accent;
+    roundRectPath(ctx, 478, y + 8, 390 * ((dimension.score100 || 0) / 100), 18, 9);
+    ctx.fill();
+    y += 48;
+  }
+
+  const qrMatrix = createQrMatrix(shareUrl);
+  drawQrOnCanvas(ctx, qrMatrix, 104, 1138, 210);
+  ctx.fillStyle = "#1e2a27";
+  ctx.font = "700 28px Microsoft YaHei, sans-serif";
+  ctx.fillText("扫码查看报告", 350, 1184);
+  ctx.fillStyle = "#62706a";
+  ctx.font = "400 21px Microsoft YaHei, sans-serif";
+  drawCanvasText(ctx, shareUrl, 350, 1224, 590, 30, 3);
+
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("浏览器未能生成分享截图。"));
+    }, "image/png");
+  });
+}
+
 function currentScore() {
   return scoreQuestionnaire(QUESTIONS, surveyState.answers, {
     order: surveyState.order,
     durationMs: surveyDurationMs(),
   });
+}
+
+function getProfileVisual(label) {
+  return PROFILE_VISUALS[label] || PROFILE_VISUALS["均衡观察型"];
+}
+
+function getProfileSlug(label = "balanced-observer") {
+  const visual = getProfileVisual(label);
+  const entry = Object.entries(PROFILE_VISUALS).find(([, item]) => item === visual);
+  return (entry?.[1]?.asset || "balanced-observer")
+    .replace("/assets/role-", "")
+    .replace(".webp", "")
+    .replace(/[^a-z0-9-]/gi, "");
+}
+
+function loadRoleVariant() {
+  try {
+    const value = Number(localStorage.getItem(ROLE_VARIANT_KEY));
+    return value === 2 ? 2 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("画像角色图片加载失败。"));
+    image.src = src;
+  });
+}
+
+function drawImageCover(ctx, image, sx, sy, sw, sh, dx, dy, dw, dh) {
+  const sourceRatio = sw / sh;
+  const targetRatio = dw / dh;
+  let cropX = sx;
+  let cropY = sy;
+  let cropW = sw;
+  let cropH = sh;
+  if (sourceRatio > targetRatio) {
+    cropW = sh * targetRatio;
+    cropX = sx + (sw - cropW) / 2;
+  } else {
+    cropH = sw / targetRatio;
+    cropY = sy + (sh - cropH) / 2;
+  }
+  ctx.drawImage(image, cropX, cropY, cropW, cropH, dx, dy, dw, dh);
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fillStyle) {
+  ctx.fillStyle = fillStyle;
+  roundRectPath(ctx, x, y, width, height, radius);
+  ctx.fill();
+}
+
+function roundRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 4) {
+  const lines = wrapCanvasText(ctx, text, maxWidth, maxLines);
+  for (let index = 0; index < lines.length; index += 1) {
+    ctx.fillText(lines[index], x, y + index * lineHeight);
+  }
+}
+
+function wrapCanvasText(ctx, text, maxWidth, maxLines) {
+  const chars = String(text || "").split("");
+  const lines = [];
+  let line = "";
+  for (const char of chars) {
+    const next = line + char;
+    if (ctx.measureText(next).width > maxWidth && line) {
+      lines.push(line);
+      line = char;
+      if (lines.length === maxLines) break;
+    } else {
+      line = next;
+    }
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines && chars.join("").length > lines.join("").length) {
+    lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, Math.max(0, lines[maxLines - 1].length - 1))}…`;
+  }
+  return lines;
+}
+
+function drawQrOnCanvas(ctx, matrix, x, y, size) {
+  const quiet = 4;
+  const modules = matrix.length + quiet * 2;
+  const cell = size / modules;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = "#1e2a27";
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix.length; col += 1) {
+      if (matrix[row][col]) {
+        ctx.fillRect(x + (col + quiet) * cell, y + (row + quiet) * cell, Math.ceil(cell), Math.ceil(cell));
+      }
+    }
+  }
 }
 
 function surveyDurationMs() {
@@ -767,12 +1178,11 @@ function absoluteResultUrl(id) {
   return absolutePath(`/result/${encodeURIComponent(id)}`);
 }
 
-function formatRaw(value) {
-  return value === null || value === undefined ? "数据不足" : round(value, 2).toFixed(2);
-}
-
-function formatScore100(value) {
-  return value === null || value === undefined ? "--" : `${round(value, 1).toFixed(1)}`;
+function formatScore10(item) {
+  const score100 =
+    item?.score100 ??
+    (item?.rawScore === null || item?.rawScore === undefined ? null : ((item.rawScore - 1) / 6) * 100);
+  return score100 === null || score100 === undefined ? "数据不足" : `${round(score100 / 10, 1).toFixed(1)}/10`;
 }
 
 function formatDuration(durationMs) {
@@ -796,6 +1206,187 @@ function formatDate(value) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function createQrMatrix(text) {
+  const version = 5;
+  const size = version * 4 + 17;
+  const dataCodewords = 108;
+  const errorCodewords = 26;
+  const bytes = Array.from(new TextEncoder().encode(text));
+  if (bytes.length > 106) {
+    throw new Error("分享链接太长，无法生成当前版本二维码。");
+  }
+
+  const data = makeQrDataCodewords(bytes, dataCodewords);
+  const divisor = reedSolomonDivisor(errorCodewords);
+  const ecc = reedSolomonRemainder(data, divisor);
+  const codewords = data.concat(ecc);
+  const modules = Array.from({ length: size }, () => Array(size).fill(false));
+  const isFunction = Array.from({ length: size }, () => Array(size).fill(false));
+
+  const setFunction = (x, y, dark) => {
+    if (x < 0 || y < 0 || x >= size || y >= size) return;
+    modules[y][x] = Boolean(dark);
+    isFunction[y][x] = true;
+  };
+
+  drawFinderPattern(setFunction, 0, 0);
+  drawFinderPattern(setFunction, size - 7, 0);
+  drawFinderPattern(setFunction, 0, size - 7);
+
+  for (let i = 8; i < size - 8; i += 1) {
+    setFunction(6, i, i % 2 === 0);
+    setFunction(i, 6, i % 2 === 0);
+  }
+
+  drawAlignmentPattern(setFunction, 30, 30);
+  setFunction(8, size - 8, true);
+  drawFormatBits(setFunction, size, 0);
+
+  const dataBits = [];
+  for (const codeword of codewords) {
+    for (let bit = 7; bit >= 0; bit -= 1) {
+      dataBits.push(((codeword >>> bit) & 1) !== 0);
+    }
+  }
+
+  let bitIndex = 0;
+  let upward = true;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right -= 1;
+    for (let vert = 0; vert < size; vert += 1) {
+      const row = upward ? size - 1 - vert : vert;
+      for (let col = right; col >= right - 1; col -= 1) {
+        if (!isFunction[row][col]) {
+          let dark = bitIndex < dataBits.length ? dataBits[bitIndex] : false;
+          bitIndex += 1;
+          if ((row + col) % 2 === 0) dark = !dark;
+          modules[row][col] = dark;
+        }
+      }
+    }
+    upward = !upward;
+  }
+
+  return modules;
+}
+
+function makeQrDataCodewords(bytes, capacity) {
+  const bits = [];
+  appendBits(bits, 0x4, 4);
+  appendBits(bits, bytes.length, 8);
+  for (const byte of bytes) appendBits(bits, byte, 8);
+  appendBits(bits, 0, Math.min(4, capacity * 8 - bits.length));
+  while (bits.length % 8 !== 0) bits.push(false);
+
+  const data = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let value = 0;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value << 1) | (bits[i + bit] ? 1 : 0);
+    }
+    data.push(value);
+  }
+  for (let pad = 0xec; data.length < capacity; pad ^= 0xec ^ 0x11) {
+    data.push(pad);
+  }
+  return data;
+}
+
+function appendBits(bits, value, length) {
+  for (let i = length - 1; i >= 0; i -= 1) {
+    bits.push(((value >>> i) & 1) !== 0);
+  }
+}
+
+function drawFinderPattern(setFunction, x, y) {
+  for (let dy = -1; dy <= 7; dy += 1) {
+    for (let dx = -1; dx <= 7; dx += 1) {
+      const inPattern = dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6;
+      const dark =
+        inPattern && (dx === 0 || dx === 6 || dy === 0 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4));
+      setFunction(x + dx, y + dy, dark);
+    }
+  }
+}
+
+function drawAlignmentPattern(setFunction, cx, cy) {
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      setFunction(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+  }
+}
+
+function drawFormatBits(setFunction, size, mask) {
+  const bits = getFormatBits(1, mask);
+  for (let i = 0; i <= 5; i += 1) setFunction(8, i, getBit(bits, i));
+  setFunction(8, 7, getBit(bits, 6));
+  setFunction(8, 8, getBit(bits, 7));
+  setFunction(7, 8, getBit(bits, 8));
+  for (let i = 9; i < 15; i += 1) setFunction(14 - i, 8, getBit(bits, i));
+  for (let i = 0; i < 8; i += 1) setFunction(size - 1 - i, 8, getBit(bits, i));
+  for (let i = 8; i < 15; i += 1) setFunction(8, size - 15 + i, getBit(bits, i));
+}
+
+function getFormatBits(eccFormatBits, mask) {
+  const data = (eccFormatBits << 3) | mask;
+  let remainder = data;
+  for (let i = 0; i < 10; i += 1) {
+    remainder = (remainder << 1) ^ (((remainder >>> 9) & 1) ? 0x537 : 0);
+  }
+  return ((data << 10) | remainder) ^ 0x5412;
+}
+
+function getBit(value, index) {
+  return ((value >>> index) & 1) !== 0;
+}
+
+function reedSolomonDivisor(degree) {
+  let result = [1];
+  for (let i = 0; i < degree; i += 1) {
+    const next = Array(result.length + 1).fill(0);
+    for (let j = 0; j < result.length; j += 1) {
+      next[j] ^= gfMultiply(result[j], 1);
+      next[j + 1] ^= gfMultiply(result[j], gfPow(2, i));
+    }
+    result = next;
+  }
+  return result.slice(1);
+}
+
+function reedSolomonRemainder(data, divisor) {
+  const result = Array(divisor.length).fill(0);
+  for (const byte of data) {
+    const factor = byte ^ result.shift();
+    result.push(0);
+    for (let i = 0; i < divisor.length; i += 1) {
+      result[i] ^= gfMultiply(divisor[i], factor);
+    }
+  }
+  return result;
+}
+
+function gfPow(value, power) {
+  let result = 1;
+  for (let i = 0; i < power; i += 1) {
+    result = gfMultiply(result, value);
+  }
+  return result;
+}
+
+function gfMultiply(left, right) {
+  let result = 0;
+  let a = left;
+  let b = right;
+  while (b !== 0) {
+    if (b & 1) result ^= a;
+    a <<= 1;
+    if (a & 0x100) a ^= 0x11d;
+    b >>>= 1;
+  }
+  return result;
 }
 
 function escapeHtml(value) {
