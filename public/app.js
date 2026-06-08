@@ -1,4 +1,5 @@
 import { QUESTIONS } from "./questionnaire.js";
+import { DEFAULT_TEST_MODE, TEST_MODES, getQuestionSet, inferQuestionSetFromIds, normalizeTestMode } from "./questionSets.js";
 import { LIKERT_OPTIONS, round, scoreQuestionnaire } from "./scoring.js";
 
 const STORAGE_KEY = "ai-attitude-questionnaire-state-v1";
@@ -111,6 +112,7 @@ let saveInFlight = false;
 let copyMessage = "";
 let selectedRoleVariant = loadRoleVariant();
 let shareImageMessage = "";
+let distributionState = { id: "", status: "idle", data: null, error: "" };
 
 window.addEventListener("popstate", renderRoute);
 window.addEventListener("keydown", handleKeydown);
@@ -148,6 +150,9 @@ function renderSurveyOrResult() {
 
   if (isComplete(surveyState)) {
     const result = currentScore();
+    if (surveyState.savedId) {
+      result.id = surveyState.savedId;
+    }
     app.innerHTML = renderReport(result, {
       mode: "personal",
       saveStatus: surveyState.saveStatus || "idle",
@@ -158,6 +163,7 @@ function renderSurveyOrResult() {
     if ((!surveyState.saveStatus || surveyState.saveStatus === "idle") && !saveInFlight) {
       queueMicrotask(() => persistResult());
     }
+    queueMicrotask(() => ensureDistribution(result));
     return;
   }
 
@@ -171,10 +177,22 @@ function renderLanding() {
         <div class="landing-copy">
           <span class="landing-kicker">AI Attitude Profile</span>
           <h1>AI 态度六维画像问卷</h1>
-          <p>通过 98 道 7 点量表题，了解你对 AI 的风险、信任、治理、采用、伦理和人机关系的当前态度画像。</p>
+          <p>通过 7 点量表题，了解你对 AI 的风险、信任、治理、采用、伦理和人机关系的当前态度画像。</p>
+          <div class="mode-choice" role="group" aria-label="选择问卷版本">
+            ${Object.values(TEST_MODES)
+              .map(
+                (mode) => `
+                  <button class="mode-option ${mode.id === DEFAULT_TEST_MODE ? "is-recommended" : ""}" type="button" data-action="begin-survey" data-mode="${escapeAttribute(mode.id)}">
+                    <strong>${escapeHtml(mode.label)}</strong>
+                    <span>${mode.questionCount} 题 · ${escapeHtml(mode.estimate)}</span>
+                    <small>${escapeHtml(mode.description)}</small>
+                  </button>
+                `,
+              )
+              .join("")}
+          </div>
           <div class="landing-actions">
-            <button class="btn primary landing-start" type="button" data-action="begin-survey">开始问卷</button>
-            <span class="landing-note">约 8-12 分钟 · 题目随机呈现 · 完成后生成分享链接</span>
+            <span class="landing-note">题目随机呈现 · 完成后生成分享链接 · 可查看总体分布和个人位置</span>
           </div>
         </div>
       </div>
@@ -197,8 +215,10 @@ function renderLanding() {
 }
 
 function renderSurvey() {
+  const questionSet = currentQuestionSet();
+  const questions = questionSet.questions;
   const answered = answeredCount(surveyState);
-  const total = QUESTIONS.length;
+  const total = questions.length;
   const progress = Math.round((answered / total) * 1000) / 10;
   const currentQuestionId = surveyState.order[surveyState.currentIndex];
   const question = questionsById.get(currentQuestionId);
@@ -208,7 +228,7 @@ function renderSurvey() {
     <header class="topbar">
       <div class="brand">
         <h1>AI 态度六维画像问卷</h1>
-        <p>98 个陈述，7 点量表。结果会生成六个一级维度、17 个子维度、画像标签和可分享报告。</p>
+        <p>${escapeHtml(questionSet.label)} · ${total} 个陈述，7 点量表。结果会生成六个一级维度、17 个子维度、画像标签和可分享报告。</p>
       </div>
       <div class="status-strip" aria-label="作答进度">
         <div class="status-number">
@@ -320,6 +340,7 @@ function renderSharedResult() {
     savedId: sharedState.result.id,
     copyMessage,
   });
+  queueMicrotask(() => ensureDistribution(sharedState.result));
 }
 
 function renderReport(result, options) {
@@ -331,12 +352,14 @@ function renderReport(result, options) {
     ? result.profile.labels
     : [{ label: primaryLabel }];
   const metaText = result.createdAt ? `生成于 ${formatDate(result.createdAt)}` : formatDuration(result.durationMs);
+  const questionSetText = result.questionSetLabel || TEST_MODES[result.testMode]?.label || "";
+  const detailMeta = [questionSetText, metaText].filter(Boolean).join(" · ");
 
   return `
     <header class="topbar">
       <div class="brand">
         <h1>AI 态度六维画像问卷</h1>
-        <p>${escapeHtml(metaText)}</p>
+        <p>${escapeHtml(detailMeta)}</p>
       </div>
       <div class="button-group">
         <button class="btn primary" type="button" data-action="start-own-test">开始我的测试</button>
@@ -377,6 +400,8 @@ function renderReport(result, options) {
         <div class="share-box">
           ${renderShareBox(options)}
         </div>
+
+        ${renderDistributionPanel(result)}
 
         <div class="detail-section">
           <h2>17 个子维度</h2>
@@ -523,6 +548,148 @@ function renderShareBox(options) {
   `;
 }
 
+function renderDistributionPanel(result) {
+  const resultId = result.id || "";
+  if (!resultId) {
+    return `
+      <div class="detail-section distribution-section">
+        <h2>总体分布</h2>
+        <p class="empty-message">分享链接生成后会显示总体分布和你的相对位置。</p>
+      </div>
+    `;
+  }
+
+  if (distributionState.id !== resultId || distributionState.status === "idle" || distributionState.status === "loading") {
+    return `
+      <div class="detail-section distribution-section">
+        <h2>总体分布</h2>
+        <p class="empty-message">正在读取总体分布。</p>
+      </div>
+    `;
+  }
+
+  if (distributionState.status === "error") {
+    return `
+      <div class="detail-section distribution-section">
+        <div class="distribution-head">
+          <h2>总体分布</h2>
+          <button class="btn subtle" type="button" data-action="reload-distribution" data-result-id="${escapeAttribute(resultId)}">重试</button>
+        </div>
+        <p class="share-message error">${escapeHtml(distributionState.error || "总体分布暂时不可用。")}</p>
+      </div>
+    `;
+  }
+
+  const data = distributionState.data || {};
+  return `
+    <div class="detail-section distribution-section">
+      <div class="distribution-head">
+        <div>
+          <h2>总体分布</h2>
+          <p>${escapeHtml(data.total ? `基于 ${data.total} 份已保存结果` : "暂无足够结果")}</p>
+        </div>
+        <button class="btn subtle" type="button" data-action="reload-distribution" data-result-id="${escapeAttribute(resultId)}">刷新</button>
+      </div>
+      ${renderProfileDistribution(data.profileDistribution || [], result.profile?.mainLabel || data.personal?.profileLabel)}
+      ${renderScoreDistributionGroup("六维分数分布", result.dimensionScores || [], data.dimensions || [])}
+      ${renderScoreDistributionGroup("17 个子维度位置", result.subdimensionScores || [], data.subdimensions || [], { compact: true })}
+    </div>
+  `;
+}
+
+function renderProfileDistribution(items, personalLabel) {
+  if (!items.length) {
+    return `<div class="distribution-block"><h3>画像类型分布</h3><p class="empty-message">暂无类型分布。</p></div>`;
+  }
+
+  const maxCount = Math.max(...items.map((item) => item.count || 0), 1);
+  return `
+    <div class="distribution-block">
+      <h3>画像类型分布</h3>
+      <div class="distribution-list">
+        ${items
+          .map((item) => {
+            const isMine = item.label === personalLabel;
+            return `
+              <div class="distribution-row ${isMine ? "is-mine" : ""}">
+                <div class="distribution-row-head">
+                  <span>${escapeHtml(item.label)}</span>
+                  <strong>${item.count} · ${formatPercent(item.percent)}</strong>
+                </div>
+                <div class="distribution-track"><div class="distribution-fill" style="width:${clamp(((item.count || 0) / maxCount) * 100, 0, 100)}%"></div></div>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderScoreDistributionGroup(title, scores, distributions, options = {}) {
+  if (!scores.length) {
+    return "";
+  }
+
+  const byName = new Map(distributions.map((item) => [item.name, item]));
+  return `
+    <div class="distribution-block">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="${options.compact ? "position-grid compact" : "position-grid"}">
+        ${scores.map((score) => renderScorePosition(score, byName.get(score.name), options)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderScorePosition(score, distribution, options = {}) {
+  const personal = distribution?.personal || {};
+  const scoreText = formatScore10(score);
+  const percentileText = Number.isFinite(personal.percentile)
+    ? `第 ${round(personal.percentile, 1).toFixed(1)} 百分位`
+    : "暂无位置";
+  const sampleText = distribution?.count ? `${distribution.count} 份样本` : "暂无样本";
+
+  return `
+    <div class="position-item">
+      <div class="position-head">
+        <strong>${escapeHtml(score.name)}</strong>
+        <span>${scoreText} · ${escapeHtml(percentileText)}</span>
+      </div>
+      ${options.compact ? "" : renderBandDistribution(distribution?.scoreBands || [], personal.bandLabel)}
+      <p>${escapeHtml(sampleText)}${distribution?.mean10 !== null && distribution?.mean10 !== undefined ? ` · 均值 ${round(distribution.mean10, 1).toFixed(1)}/10` : ""}</p>
+    </div>
+  `;
+}
+
+function renderBandDistribution(bands, personalBandLabel) {
+  if (!bands.length) {
+    return `<div class="band-stack"></div>`;
+  }
+
+  const maxCount = Math.max(...bands.map((band) => band.count || 0), 1);
+  return `
+    <div class="band-stack" aria-label="分数分布">
+      ${bands
+        .map(
+          (band) => `
+            <span
+              class="band-cell ${band.label === personalBandLabel ? "is-mine" : ""}"
+              style="height:${band.count ? clamp(((band.count || 0) / maxCount) * 100, 8, 100) : 0}%"
+              title="${escapeAttribute(`${band.label}：${band.count}，${formatPercent(band.percent)}`)}"
+            ></span>
+          `,
+        )
+        .join("")}
+    </div>
+    <div class="band-labels" aria-hidden="true">
+      <span>0</span>
+      <span>5</span>
+      <span>10</span>
+    </div>
+  `;
+}
+
 function renderQrSvg(value) {
   try {
     const matrix = createQrMatrix(value);
@@ -625,11 +792,13 @@ function handleClick(event) {
   } else if (action === "start-own-test") {
     startOwnTest();
   } else if (action === "begin-survey") {
-    beginSurvey();
+    beginSurvey(control.dataset.mode || DEFAULT_TEST_MODE);
   } else if (action === "select-role") {
     selectRoleVariant(Number(control.dataset.variant));
   } else if (action === "download-share-image") {
     downloadShareImage(control.dataset.shareUrl || "");
+  } else if (action === "reload-distribution") {
+    loadDistribution(control.dataset.resultId || "", { force: true });
   }
 }
 
@@ -730,27 +899,33 @@ function jumpToNextUnanswered() {
 function resetSurvey() {
   const confirmed = window.confirm("确定重新开始吗？当前未分享的作答进度会被清除。");
   if (!confirmed) return;
-  surveyState = createSurveyState();
+  surveyState = createSurveyState(surveyState?.testMode || DEFAULT_TEST_MODE);
   copyMessage = "";
+  shareImageMessage = "";
+  distributionState = { id: "", status: "idle", data: null, error: "" };
   saveSurveyState();
   history.pushState(null, "", "/");
   renderRoute();
 }
 
 function startOwnTest() {
-  surveyState = createSurveyState();
+  surveyState = createSurveyState(DEFAULT_TEST_MODE);
   sharedState = null;
   copyMessage = "";
+  shareImageMessage = "";
+  distributionState = { id: "", status: "idle", data: null, error: "" };
   saveSurveyState();
   history.pushState(null, "", "/");
   renderRoute();
 }
 
-function beginSurvey() {
-  if (!surveyState || isComplete(surveyState)) {
-    surveyState = createSurveyState();
+function beginSurvey(mode = DEFAULT_TEST_MODE) {
+  const testMode = normalizeTestMode(mode);
+  if (!surveyState || isComplete(surveyState) || surveyState.testMode !== testMode) {
+    surveyState = createSurveyState(testMode);
   }
   surveyState.hasStarted = true;
+  surveyState.testMode = testMode;
   surveyState.startedAt = Date.now();
   surveyState.completedAt = null;
   surveyState.saveStatus = "idle";
@@ -758,6 +933,8 @@ function beginSurvey() {
   surveyState.shareUrl = "";
   surveyState.saveError = "";
   copyMessage = "";
+  shareImageMessage = "";
+  distributionState = { id: "", status: "idle", data: null, error: "" };
   saveSurveyState();
   renderRoute();
 }
@@ -775,6 +952,7 @@ async function persistResult() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        testMode: surveyState.testMode || DEFAULT_TEST_MODE,
         answers: surveyState.answers,
         order: surveyState.order,
         durationMs: surveyDurationMs(),
@@ -789,6 +967,7 @@ async function persistResult() {
     surveyState.savedId = data.id;
     surveyState.shareUrl = absolutePath(data.sharePath || `/result/${data.id}`);
     saveSurveyState();
+    distributionState = { id: "", status: "idle", data: null, error: "" };
     sharedState = {
       id: data.id,
       status: "loaded",
@@ -818,12 +997,45 @@ async function fetchSharedResult(id) {
       throw new Error(data.error || `读取失败：${response.status}`);
     }
     sharedState = { id, status: "loaded", result: data.result, error: "" };
+    distributionState = { id: "", status: "idle", data: null, error: "" };
   } catch (error) {
     sharedState = {
       id,
       status: "error",
       result: null,
       error: error instanceof Error ? error.message : "读取结果失败。",
+    };
+  }
+  renderRoute();
+}
+
+function ensureDistribution(result) {
+  const id = result?.id || "";
+  if (!id) return;
+  if (distributionState.id === id && ["loading", "loaded", "error"].includes(distributionState.status)) return;
+  loadDistribution(id);
+}
+
+async function loadDistribution(id, options = {}) {
+  if (!id) return;
+  if (!options.force && distributionState.id === id && distributionState.status === "loading") return;
+
+  distributionState = { id, status: "loading", data: null, error: "" };
+  renderRoute();
+
+  try {
+    const response = await fetch(`/api/distribution?id=${encodeURIComponent(id)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || `读取分布失败：${response.status}`);
+    }
+    distributionState = { id, status: "loaded", data, error: "" };
+  } catch (error) {
+    distributionState = {
+      id,
+      status: "error",
+      data: null,
+      error: error instanceof Error ? error.message : "读取总体分布失败。",
     };
   }
   renderRoute();
@@ -955,9 +1167,12 @@ async function createShareImageBlob(result, shareUrl, variant) {
 }
 
 function currentScore() {
-  return scoreQuestionnaire(QUESTIONS, surveyState.answers, {
+  const questionSet = currentQuestionSet();
+  return scoreQuestionnaire(questionSet.questions, surveyState.answers, {
     order: surveyState.order,
     durationMs: surveyDurationMs(),
+    testMode: questionSet.id,
+    questionSetLabel: questionSet.label,
   });
 }
 
@@ -1099,22 +1314,29 @@ function surveyDurationMs() {
   return (surveyState.completedAt || Date.now()) - surveyState.startedAt;
 }
 
+function currentQuestionSet(state = surveyState) {
+  return getQuestionSet(state?.testMode || DEFAULT_TEST_MODE);
+}
+
 function answeredCount(state) {
-  return QUESTIONS.reduce((count, question) => count + (state.answers[question.id] !== undefined ? 1 : 0), 0);
+  const questions = currentQuestionSet(state).questions;
+  return questions.reduce((count, question) => count + (state.answers[question.id] !== undefined ? 1 : 0), 0);
 }
 
 function isComplete(state) {
-  return answeredCount(state) === QUESTIONS.length;
+  return answeredCount(state) === currentQuestionSet(state).questions.length;
 }
 
 function hasAnyAnswer(state) {
   return answeredCount(state) > 0;
 }
 
-function createSurveyState() {
+function createSurveyState(mode = DEFAULT_TEST_MODE) {
+  const questionSet = getQuestionSet(mode);
   return {
+    testMode: questionSet.id,
     hasStarted: false,
-    order: shuffle(QUESTIONS.map((question) => question.id)),
+    order: shuffle(questionSet.questionIds),
     answers: {},
     currentIndex: 0,
     startedAt: Date.now(),
@@ -1131,9 +1353,13 @@ function loadSurveyState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return createSurveyState();
     const parsed = JSON.parse(raw);
-    const ids = new Set(QUESTIONS.map((question) => question.id));
-    const order = Array.isArray(parsed.order) ? parsed.order.map(Number).filter((id) => ids.has(id)) : [];
-    if (order.length !== QUESTIONS.length || new Set(order).size !== QUESTIONS.length) {
+    const rawOrder = Array.isArray(parsed.order) ? parsed.order.map(Number).filter(Number.isInteger) : [];
+    const questionSet = parsed.testMode
+      ? getQuestionSet(parsed.testMode)
+      : inferQuestionSetFromIds(rawOrder);
+    const ids = new Set(questionSet.questionIds);
+    const order = rawOrder.filter((id) => ids.has(id));
+    if (order.length !== questionSet.questions.length || new Set(order).size !== questionSet.questions.length) {
       return createSurveyState();
     }
 
@@ -1153,10 +1379,11 @@ function loadSurveyState() {
       parsed.saveStatus === "saved";
 
     return {
+      testMode: questionSet.id,
       hasStarted,
       order,
       answers,
-      currentIndex: clamp(Number(parsed.currentIndex) || 0, 0, QUESTIONS.length - 1),
+      currentIndex: clamp(Number(parsed.currentIndex) || 0, 0, questionSet.questions.length - 1),
       startedAt: Number(parsed.startedAt) || Date.now(),
       completedAt: parsed.completedAt ? Number(parsed.completedAt) : null,
       saveStatus: parsed.saveStatus || "idle",
@@ -1205,6 +1432,10 @@ function formatScore10(item) {
     item?.score100 ??
     (item?.rawScore === null || item?.rawScore === undefined ? null : ((item.rawScore - 1) / 6) * 100);
   return score100 === null || score100 === undefined ? "数据不足" : `${round(score100 / 10, 1).toFixed(1)}/10`;
+}
+
+function formatPercent(value) {
+  return Number.isFinite(Number(value)) ? `${round(Number(value), 1).toFixed(1)}%` : "0.0%";
 }
 
 function formatDuration(durationMs) {

@@ -243,16 +243,21 @@ export function normalizeAnswers(answers) {
   return normalized;
 }
 
-export function normalizeOrder(order, questionCount) {
+export function normalizeOrder(order, questionIdsOrCount) {
   if (!Array.isArray(order)) {
     return [];
   }
 
+  const validIds = Array.isArray(questionIdsOrCount)
+    ? new Set(questionIdsOrCount.map(Number).filter(Number.isInteger))
+    : null;
+  const questionCount = validIds ? null : Number(questionIdsOrCount);
   const seen = new Set();
   const normalized = [];
   for (const raw of order) {
     const id = Number(raw);
-    if (Number.isInteger(id) && id >= 1 && id <= questionCount && !seen.has(id)) {
+    const isValid = validIds ? validIds.has(id) : Number.isInteger(id) && id >= 1 && id <= questionCount;
+    if (Number.isInteger(id) && isValid && !seen.has(id)) {
       seen.add(id);
       normalized.push(id);
     }
@@ -341,12 +346,16 @@ export function scoreQuestionnaire(questions, answers, meta = {}) {
   const profile = deriveProfile(dimensionScores, subdimensionScores);
   const completedQuestions = answeredQuestionIds.size;
   const completionRate = questions.length ? completedQuestions / questions.length : 0;
-  const order = normalizeOrder(meta.order, questions.length);
+  const questionIds = questions.map((question) => question.id);
+  const order = normalizeOrder(meta.order, questionIds);
   const longestSameRun = longestRun(normalizedAnswers, order.length ? order : questions.map((question) => question.id));
   const durationMs = Number.isFinite(Number(meta.durationMs)) ? Math.max(0, Math.round(Number(meta.durationMs))) : null;
+  const tooFastThresholdMs = Math.round(questions.length * 1800);
 
   return {
     version: QUESTIONNAIRE_VERSION,
+    testMode: meta.testMode || "full",
+    questionSetLabel: meta.questionSetLabel || "",
     completedQuestions,
     questionCount: questions.length,
     completionRate,
@@ -359,7 +368,8 @@ export function scoreQuestionnaire(questions, answers, meta = {}) {
       enoughAnswered: completionRate >= 0.9,
       longestSameRun,
       straightLineWarning: longestSameRun >= 20,
-      tooFastWarning: durationMs !== null && durationMs < 180000,
+      tooFastWarning: durationMs !== null && durationMs < tooFastThresholdMs,
+      tooFastThresholdMs,
       validDimensionCount: dimensionScores.filter((item) => item.valid).length,
       validSubdimensionCount: subdimensionScores.filter((item) => item.valid).length,
     },

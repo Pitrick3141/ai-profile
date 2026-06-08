@@ -29,6 +29,7 @@ html {
 }
 
 body {
+  overflow-x: hidden;
   min-height: 100vh;
   margin: 0;
   color: var(--ink);
@@ -344,6 +345,58 @@ button {
   gap: 14px;
   align-items: center;
   margin-top: 30px;
+}
+
+.mode-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 28px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.mode-option {
+  display: grid;
+  min-height: 132px;
+  gap: 6px;
+  align-content: center;
+  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mode-option:hover,
+.mode-option:focus-visible {
+  border-color: var(--primary);
+  background: #ffffff;
+  outline: none;
+}
+
+.mode-option.is-recommended {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  background: #f8fbf7;
+  box-shadow: 0 10px 24px rgba(36, 48, 43, 0.08);
+}
+
+.mode-option strong {
+  font-size: 1.18rem;
+}
+
+.mode-option span,
+.mode-option small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.mode-option small {
+  font-size: 0.88rem;
 }
 
 .landing-start {
@@ -741,6 +794,152 @@ button {
   gap: 10px;
 }
 
+.distribution-section {
+  grid-column: 1 / -1;
+}
+
+.distribution-head {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.distribution-head h2,
+.distribution-head p {
+  margin: 0;
+}
+
+.distribution-head p {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.distribution-block {
+  margin-top: 16px;
+}
+
+.distribution-block h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.distribution-list,
+.position-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.distribution-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.distribution-row {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.distribution-row.is-mine {
+  border-color: var(--primary);
+  background: #f2fbf8;
+}
+
+.distribution-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.distribution-row-head span {
+  font-weight: 700;
+}
+
+.distribution-row-head strong {
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.distribution-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e1e9e2;
+}
+
+.distribution-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #84a11f);
+}
+
+.position-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.position-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.position-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.position-head {
+  display: grid;
+  gap: 4px;
+}
+
+.position-head strong {
+  line-height: 1.35;
+}
+
+.position-head span,
+.position-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.band-stack {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  align-items: end;
+  height: 58px;
+  padding-top: 4px;
+}
+
+.band-cell {
+  display: block;
+  border-radius: 5px 5px 2px 2px;
+  background: #dbe6dc;
+}
+
+.band-cell.is-mine {
+  background: var(--accent);
+}
+
+.band-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .sub-score {
   padding: 12px;
   border: 1px solid var(--line);
@@ -891,6 +1090,12 @@ button {
   .landing-summary div {
     min-height: auto;
   }
+
+  .distribution-list,
+  .position-grid,
+  .position-grid.compact {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -963,6 +1168,9 @@ button {
 
   .landing-page {
     margin-top: -16px;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .landing-hero {
@@ -976,6 +1184,10 @@ button {
   .landing-actions,
   .landing-actions .btn {
     width: 100%;
+  }
+
+  .mode-choice {
+    grid-template-columns: 1fr;
   }
 
   .landing-note {

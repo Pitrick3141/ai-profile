@@ -1,4 +1,4 @@
-import { QUESTIONS } from "../../public/questionnaire.js";
+import { getQuestionSet, inferQuestionSetFromIds, normalizeTestMode } from "../../public/questionSets.js";
 import { normalizeAnswers, normalizeOrder, scoreQuestionnaire } from "../../public/scoring.js";
 
 const HEADERS = {
@@ -25,13 +25,27 @@ export async function onRequestPost({ request, env }) {
   }
 
   const answers = normalizeAnswers(body.answers);
-  if (Object.keys(answers).length !== QUESTIONS.length) {
-    return json({ error: `需要完整提交 ${QUESTIONS.length} 道题。` }, 400);
+  const requestedMode = normalizeTestMode(body.testMode || body.questionSetId || body.mode, "");
+  const questionSet = requestedMode
+    ? getQuestionSet(requestedMode)
+    : inferQuestionSetFromIds(Object.keys(answers).map(Number));
+  const questionIds = new Set(questionSet.questionIds);
+  const scopedAnswers = Object.fromEntries(
+    Object.entries(answers).filter(([id]) => questionIds.has(Number(id))),
+  );
+
+  if (Object.keys(scopedAnswers).length !== questionSet.questions.length) {
+    return json({ error: `需要完整提交${questionSet.label}的 ${questionSet.questions.length} 道题。` }, 400);
   }
 
   const durationMs = Number.isFinite(Number(body.durationMs)) ? Math.max(0, Math.round(Number(body.durationMs))) : null;
-  const order = normalizeOrder(body.order, QUESTIONS.length);
-  const scored = scoreQuestionnaire(QUESTIONS, answers, { durationMs, order });
+  const order = normalizeOrder(body.order, questionSet.questionIds);
+  const scored = scoreQuestionnaire(questionSet.questions, scopedAnswers, {
+    durationMs,
+    order,
+    testMode: questionSet.id,
+    questionSetLabel: questionSet.label,
+  });
   if (!scored.validity.complete) {
     return json({ error: "问卷尚未完整作答。" }, 400);
   }
@@ -65,7 +79,7 @@ export async function onRequestPost({ request, env }) {
         scored.version,
         scored.completedQuestions,
         durationMs,
-        JSON.stringify(answers),
+        JSON.stringify(scopedAnswers),
         JSON.stringify(order),
         JSON.stringify(result),
         (request.headers.get("User-Agent") || "").slice(0, 300),
